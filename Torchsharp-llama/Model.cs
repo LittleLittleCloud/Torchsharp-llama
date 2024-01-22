@@ -59,7 +59,7 @@ public struct ModelArgs
     public int MaxSeqLen { get; set; } = 1024;
 
     [JsonPropertyName("device")]
-    public string? Device { get; set; } = null;
+    public string Device { get; set; } = "cpu";
 
     public ModelArgs()
     {
@@ -71,30 +71,34 @@ public class RMSNorm : torch.nn.Module<Tensor, Tensor>
     private int _dim;
     private float _eps;
     private Parameter weight;
-    public RMSNorm(int dim, float eps = 1e-8f)
+
+    public RMSNorm(ModelArgs args)
         : base(nameof(RMSNorm))
     {
-        this._dim = dim;
-        this._eps = eps;
+        this._dim = args.Dim;
+        this._eps = args.NormEps;
 
         // the gamma scalar
-        this.weight = torch.nn.Parameter(torch.ones(dim));
+        this.weight = torch.nn.Parameter(torch.ones(args.Dim, dtype: ScalarType.BFloat16, device: args.Device));
     }
 
     private Tensor Norm(Tensor x)
     {
         // (B, Seq_Len, Dim) * (B, Seq_Len, 1) = (B, Seq_Len, Dim)
         // rsqrt = 1 / sqrt
-        var sqrt = torch.sqrt(torch.mean(x * x, dimensions: [-1L], keepdim: true) + this._eps);
-        return x / sqrt;
+        var output = x * torch.rsqrt(x.pow(2).mean([-1L], keepdim: true) + this._eps);
+        return output;
     }
 
     public override Tensor forward(Tensor input)
     {
         // (B, Seq_Len, Dim)
-        var normed = this.Norm(input);
+        var normed = this.Norm(input.to_type(ScalarType.Float32)).type_as(input);
         // (B, Seq_Len, Dim) * (Dim) = (B, Seq_Len, Dim)
-        return normed * this.weight;
+        normed.Peek("RMSNorm normed");
+        var output = this.weight * normed;
+
+        return output;
     }
 }
 
@@ -156,7 +160,6 @@ public class SelfAttention : torch.nn.Module<Tensor, int, Tensor, Tensor?, Tenso
 
         // (B, Seq_Len, H_KV * Head_Dim) -> (B, Seq_Len, H_KV, Head_Dim)
         xv = xv.view(batchSize, seqLen, this.nKVHeads, this.headDim);
-
         // (B, Seq_Len, H_Q, Head_Dim) -> (B, Seq_Len, H_Q, Head_Dim)
         xq = Utils.ApplyRotaryEmbeddings(xq, freqsComplex);
 
@@ -185,10 +188,9 @@ public class SelfAttention : torch.nn.Module<Tensor, int, Tensor, Tensor?, Tenso
 
         // (B, Seq_Len_KV, H_Q, Head_Dim) -> (B, H_Q, Seq_Len_KV, Head_Dim)
         values = values.transpose(1, 2);
-
         // (B, H_Q, Seq_Len, Head_Dim) @ (B, H_Q, Head_Dim, Seq_Len_KV) -> (B, H_Q, Seq_Len, Seq_Len_KV)
         var scores = torch.matmul(xq, keys.transpose(2, 3)) / Math.Sqrt(this.headDim);
-
+        scores.Peek("scores");
         if (mask is not null)
         {
             scores = scores + mask;
@@ -224,16 +226,18 @@ public class FeedForward : torch.nn.Module<Tensor, Tensor>
 
         // Round the hidden_dim to the nearest multiple of the multiple_of parameter
         hiddenDim = args.MultipleOf * ((hiddenDim + args.MultipleOf - 1) / args.MultipleOf);
+        this.w1 = torch.nn.Linear(args.Dim, hiddenDim, hasBias: false, dtype: ScalarType.BFloat16);
+        this.w2 = torch.nn.Linear(hiddenDim, args.Dim, hasBias: false, dtype: ScalarType.BFloat16);
+        this.w3 = torch.nn.Linear(args.Dim, hiddenDim, hasBias: false, dtype: ScalarType.BFloat16);
 
-        this.w1 = torch.nn.Linear(args.Dim, hiddenDim, hasBias: false);
-        this.w2 = torch.nn.Linear(hiddenDim, args.Dim, hasBias: false);
-        this.w3 = torch.nn.Linear(args.Dim, hiddenDim, hasBias: false);
+        RegisterComponents();
     }
 
     public override Tensor forward(Tensor input)
     {
         // (B, Seq_Len, Dim) -> (B, Seq_Len, Hidden_Dim)
         var swish = torch.nn.functional.silu(this.w1.forward(input));
+        swish.Peek("swish");
         // (B, Seq_Len, Hidden_Dim) -> (B, Seq_Len, Dim)
         var xV = this.w3.forward(input);
         // (B, Seq_Len, Hidden_Dim) * (B, Seq_Len, Hidden_Dim) -> (B, Seq_Len, Hidden_Dim)
@@ -257,24 +261,27 @@ public class EncoderBlock : torch.nn.Module<Tensor, int, Tensor, Tensor?, Tensor
     {
         this.attention = new SelfAttention(args);
         this.feed_forward = new FeedForward(args);
-        this.attention_norm = new RMSNorm(args.Dim, eps: args.NormEps);
-        this.ffn_norm = new RMSNorm(args.Dim, eps: args.NormEps);
+        this.attention_norm = new RMSNorm(args);
+        this.ffn_norm = new RMSNorm(args);
     }
 
     public override Tensor forward(Tensor input, int startPos, Tensor freqsComplex, Tensor? mask)
     {
         // (B, Seq_Len, Dim) + (B, Seq_Len, Dim) --> (B, Seq_Len, Dim)
+        input.Peek("x1");
         var x = this.attention_norm.forward(input);
         // (B, Seq_Len, Dim) -> (B, Seq_Len, Dim)
         x = this.attention.forward(x, startPos, freqsComplex, mask);
         // (B, Seq_Len, Dim) + (B, Seq_Len, Dim) -> (B, Seq_Len, Dim)
-        x = x + input;
+        var h = x + input;
         // (B, Seq_Len, Dim) -> (B, Seq_Len, Dim)
-        x = this.ffn_norm.forward(x);
+        x = this.ffn_norm.forward(h);
         // (B, Seq_Len, Dim) -> (B, Seq_Len, Dim)
         x = this.feed_forward.forward(x);
         // (B, Seq_Len, Dim) + (B, Seq_Len, Dim) -> (B, Seq_Len, Dim)
-        x = x + input;
+        x = x + h;
+
+        x.Peek("x2");
 
         return x;
     }
@@ -299,7 +306,7 @@ public class Transformer : nn.Module<Tensor, int, Tensor>
         this.args = args;
         this.vocabSize = args.VocabSize;
         this.nLayers = args.NLayers;
-        this.tok_embeddings = nn.Embedding(this.vocabSize, this.args.Dim);
+        this.tok_embeddings = nn.Embedding(this.vocabSize, this.args.Dim, dtype: ScalarType.BFloat16);
 
         this.layers = nn.ModuleList<nn.Module<Tensor, int, Tensor, Tensor?, Tensor>>();
         for (int i = 0; i < this.nLayers; i++)
@@ -307,8 +314,8 @@ public class Transformer : nn.Module<Tensor, int, Tensor>
             this.layers.Add(new EncoderBlock(args));
         }
 
-        this.norm = new RMSNorm(args.Dim, eps: args.NormEps);
-        this.output = nn.Linear(args.Dim, this.vocabSize, hasBias: false);
+        this.norm = new RMSNorm(args);
+        this.output = nn.Linear(args.Dim, this.vocabSize, dtype: ScalarType.BFloat16, hasBias: false);
 
         RegisterComponents();
 
@@ -331,18 +338,20 @@ public class Transformer : nn.Module<Tensor, int, Tensor>
         Tensor? mask = null;
         if (seqLen > 1)
         {
-            mask = torch.full(new long[] {seqLen, seqLen}, value: float.NegativeInfinity, device: this.args.Device);
+            var device = h.device;
+            mask = torch.full(new long[] {seqLen, seqLen}, dtype: ScalarType.Float32, value: float.NegativeInfinity, device: device);
             // (B, Seq_Len) -> (B, Seq_Len, Seq_Len)
             mask = torch.triu(mask, diagonal: 1);
             // (B, Seq_Len, Seq_Len) -> (B, Seq_Len, Seq_Len)
 
-            var zeros = torch.zeros(seqLen, startPos);
+            var zeros = torch.zeros(seqLen, startPos, device: device);
             mask = torch.hstack([zeros, mask]).type_as(h);
         }
         for (int i = 0; i < this.nLayers; i++)
         {
             h = this.layers[i].forward(h, startPos, freqsComplex, mask);
         }
+
 
         // (B, Seq_Len, Dim) -> (B, Seq_Len, Dim)
         h = this.norm.forward(h);
