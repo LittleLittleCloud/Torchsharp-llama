@@ -44,12 +44,11 @@ public class LLaMA
         stopWatch.Start();
         var checkPoints = Directory.GetFiles(checkPointsDirectory, "*.pt");
         var paramJsonPath = Path.Combine(checkPointsDirectory, "params.json");
-        var modelArgs = JsonSerializer.Deserialize<ModelArgs>(File.ReadAllText(paramJsonPath));
-        modelArgs.VocabSize = 32000;
-        modelArgs.Device = device;
+        var modelArgs = JsonSerializer.Deserialize<ModelArgs>(File.ReadAllText(paramJsonPath)) ?? throw new Exception("Failed to deserialize model args");
+        modelArgs.VocabSize = tokenizer.VocabSize;
         modelArgs.MaxSeqLen = maxSeqLen;
         modelArgs.MaxBatchSize = maxBatchSize;
-
+        torch.set_default_dtype(torch.bfloat16);
         // print model args
         var modelArgsJson = JsonSerializer.Serialize(modelArgs, new JsonSerializerOptions { WriteIndented = true });
         Console.WriteLine($"modelArgs: {modelArgsJson}");
@@ -57,26 +56,11 @@ public class LLaMA
         var ckptPath = checkPoints.Last();
         var model = new Transformer(modelArgs);
         var stateDict = model.state_dict();
-
-        Console.WriteLine($"stateDict.Count: {stateDict.Count}");
-        foreach (var (key, value) in stateDict)
-        {
-            Console.WriteLine($"key: {key}, value: {value}");
-        }
-        model.load(ckptPath, strict: true, skip: new string[] { "rope.freqs" });
+        stateDict.LoadStateDict(ckptPath);
+        model.load_state_dict(stateDict);
+        model = model.to(device);
         stopWatch.Stop();
         Console.WriteLine($"Loading checkpoint took {stopWatch.ElapsedMilliseconds} ms");
-        if (device == "cuda")
-        {
-            var randomTensor = torch.rand(1, dtype: torch.half, device: device);
-            torch.set_default_tensor_type(randomTensor);
-        }
-        else
-        {
-            var randomTensor = torch.rand(1, dtype: torch.bfloat16, device: device);
-            torch.set_default_tensor_type(randomTensor);
-        }
-
 
         return new LLaMA(model, tokenizer);
     }
@@ -87,7 +71,8 @@ public class LLaMA
         float temperature = 0.6f,
         float topP = 0.9f,
         bool logProbs = false,
-        bool echo = false)
+        bool echo = false,
+        string device = "cpu")
     {
         torch.Tensor? tokenLogProbs = null;
         var batch = promptTokens.Length;
@@ -100,22 +85,22 @@ public class LLaMA
 
         var totalLen = Math.Min(maxPromptLen + maxGenLen, param.MaxSeqLen);
 
-        var tokens = torch.full(new long[] {batch, totalLen}, this.tokenizer.PadId, dtype: torch.int64, device: param.Device);
+        var tokens = torch.full(new long[] {batch, totalLen}, this.tokenizer.PadId, dtype: torch.int64, device: device);
         for (var i = 0; i < batch; i++)
         {
             var promptLen = promptTokens[i].Length;
-            tokens[i, 0..promptLen] = torch.tensor(promptTokens[i], dtype: torch.int64, device: param.Device);
+            tokens[i, 0..promptLen] = torch.tensor(promptTokens[i], dtype: torch.int64, device: device);
         }
 
         if (logProbs)
         {
-            tokenLogProbs = torch.zeros(batch, totalLen, this.tokenizer.VocabSize, dtype: torch.float32, device: param.Device);
+            tokenLogProbs = torch.zeros(batch, totalLen, this.tokenizer.VocabSize, dtype: torch.float32, device: device);
         }
 
         using (var _ = torch.no_grad())
         {
             var prevPos = 0;
-            var eosReached = torch.tensor(new bool[batch], device: param.Device);
+            var eosReached = torch.tensor(new bool[batch], device: device);
             var inputTextMask = tokens != this.tokenizer.PadId;
 
             torch.Tensor logits;
@@ -205,7 +190,8 @@ public class LLaMA
         float temperature = 0.6f,
         float topP = 0.9f,
         bool logProbs = false,
-        bool echo = false)
+        bool echo = false,
+        string device = "cpu")
     {
         if (maxGenLen == null)
         {
@@ -213,7 +199,7 @@ public class LLaMA
         }
 
         var prompTokens = prompts.Select(x => this.tokenizer.Encode(x, bos: true, eos: false)).ToArray();
-        var (outputTokens, outputLogProbs) = this.Generate(prompTokens, maxGenLen.Value, temperature, topP, logProbs, echo);
+        var (outputTokens, outputLogProbs) = this.Generate(prompTokens, maxGenLen.Value, temperature, topP, logProbs, echo, device);
         return outputTokens.Select((x, i) => new CompletionPrediction(this.tokenizer.Decode(x), x.Select(x => this.tokenizer.Decode([x])).ToArray(), logProbs ? outputLogProbs![i] : null)).ToArray();
     }
 

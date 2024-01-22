@@ -17,7 +17,7 @@ public static class Utils
         // Separate the last dimension pairs of two values, representing the real and imaginary parts of the complex number
         // Two consecutive values will become a single complex number
         // (B, Seq_Len, H, Head_Dim) -> (B, Seq_Len, H, Head_Dim/2)
-        var input_complex = input.reshape(input.shape[0], input.shape[1], input.shape[2], -1, 2).view_as_complex();
+        var input_complex = input.to_type(ScalarType.Float32).reshape(input.shape[0], input.shape[1], input.shape[2], -1, 2).view_as_complex();
 
         // Reshape the freqs_complex tensor to match the shape of the x_complex tensor. So we need to add the batch dimension and the head dimension
         // (Seq_Len, Head_Dim/2) --> (1, Seq_Len, 1, Head_Dim/2)
@@ -27,16 +27,18 @@ public static class Utils
         // Which results in the rotation of the complex number as shown in the Figure 1 of the paper
         // (B, Seq_Len, H, Head_Dim/2) * (1, Seq_Len, 1, Head_Dim/2) = (B, Seq_Len, H, Head_Dim/2)
         var rotated_complex = input_complex * freqs_complex_reshaped;
+        // Console.WriteLine(rotated_complex.mean().ToSingle());
 
         // Convert the complex number back to the real number
         // (B, Seq_Len, H, Head_Dim/2) -> (B, Seq_Len, H, Head_Dim/2, 2)
         var rotated = rotated_complex.view_as_real();
+        Console.WriteLine(rotated.mean().ToSingle());
 
         // (B, Seq_Len, H, Head_Dim/2, 2) -> (B, Seq_Len, H, Head_Dim)
         var rotated_reshaped = rotated.reshape(rotated.shape[0], rotated.shape[1], rotated.shape[2], -1);
 
         input.shape.Should().BeEquivalentTo(rotated_reshaped.shape);
-        return rotated_reshaped;
+        return rotated_reshaped.type_as(input);
     }
 
 //    def precompute_theta_pos_frequencies(head_dim: int, seq_len: int, device: str, theta: float = 10000.0):
@@ -74,8 +76,7 @@ public static class Utils
         // Shape: (Head_Dim / 2)
         var thetaNumerator = torch.arange(0, headDim, 2).to(torch.float32).to(device);
         // Shape: (Head_Dim / 2)
-        var thetaInput = 1.0f / (torch.pow(theta, -2.0f * (thetaNumerator / headDim))).to(device); // (Dim / 2)
-
+        var thetaInput = torch.pow(theta, -1.0f * (thetaNumerator / headDim)).to(device); // (Dim / 2)
         // Construct the positions (the "m" parameter)
         // Shape: (Seq_Len)
         var m = torch.arange(seqLen, device: device);
@@ -89,18 +90,7 @@ public static class Utils
 
         return freqsComplex;
     }
-//    def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
-//    batch_size, seq_len, n_kv_heads, head_dim = x.shape
-//    if n_rep == 1:
-//        return x
-//    return (
-//# (B, Seq_Len, N_KV_Heads, 1, Head_Dim)
-//        x[:, :, :, None, :]
-//        # (B, Seq_Len, N_KV_Heads, N_Rep, Head_Dim)
-//        .expand(batch_size, seq_len, n_kv_heads, n_rep, head_dim)
-//        # (B, Seq_Len, N_KV_Heads * N_Rep, Head_Dim)
-//        .reshape(batch_size, seq_len, n_kv_heads* n_rep, head_dim)
-//    )
+
 
     public static Tensor RepeatKV(Tensor x, int nRep)
     {
