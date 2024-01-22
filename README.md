@@ -9,7 +9,7 @@ Inspired by [pytorch-llama](https://github.com/hkproj/pytorch-llama), this proje
 
 ## How to run
 
-- Follow this [instruction](https://github.com/dotnet/TorchSharp/wiki/Sharing-Model-Data-between-PyTorch-and-TorchSharp) to convert your model to torchsharp format.
+- Follow this [instruction](https://github.com/dotnet/TorchSharp/wiki/Sharing-Model-Data-between-PyTorch-and-TorchSharp) to convert llama2 model to torchsharp format.
 
 > [!NOTE]
 > torchsharp format seems not to support `torch.half` type yet, so the model weight is saved as `torch.float` type instead, which makes the model size twice as large as the original one. This issue is addressed in [this issue](https://github.com/dotnet/TorchSharp/issues/1204), and when loading model from torchsharp model file, the model weight will need to be converted to `torch.half` type manually.
