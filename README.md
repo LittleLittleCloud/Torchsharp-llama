@@ -27,3 +27,4 @@ Also, this project doesn't come with any warranty. Use it at your own risk.
 
 ## TODO
 - [ ] Add support to load from `.safetensor` and native ckpt file so that we don't need to convert the model to torchsharp format. The support for `.safetensor` should be an easy one, but the support for native ckpt file is a bit tricky (otherwise why torchsharp format exists in the first place)
+- [ ] Add support for lora training
