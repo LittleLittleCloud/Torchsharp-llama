@@ -18,7 +18,7 @@ Inspired by [pytorch-llama](https://github.com/hkproj/pytorch-llama), this proje
 - Run the project
 
 ## About tokenizer
-This project uses a BPE tokenizer from [`Microsoft.ML.Tokenizer`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.ml.tokenizers.tokenizer?view=ml-dotnet-preview) to tokenize the input text. You can find the `vocab.json` and `merges.txt` under the root of this repo. To use a third-party tokenizer, you can simply replace the `vocab.json` and `merges.txt` with your own tokenizer files.
+This project uses a BPE tokenizer from [`Microsoft.ML.Tokenizer`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.ml.tokenizers.tokenizer?view=ml-dotnet-preview) to tokenize the input text. You can find the `vocab.json` and `merges.txt` under [torcharp-llama](Torchsharp-llama). To use a third-party tokenizer, you can simply replace the `vocab.json` and `merges.txt` with your own tokenizer files.
 
 ## Disclaimer
 This project is only tested with LLaMA-2-7B model. I do hope I can have the chance to test it with other models, but unfortunately 7B model is already the largest model I can afford to run on my machine. If you have chance to test other models, please let me know if it works or not. Thanks!
