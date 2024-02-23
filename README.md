@@ -10,17 +10,17 @@ Inspired by [pytorch-llama](https://github.com/hkproj/pytorch-llama), this proje
 ## How to run
 
 - Download the model weight. The model weigh is available from huggingface model hub.
- - llama-2-7b: https://huggingface.co/meta-llama/Llama-2-7b
- - llama-2-7b-chat: https://huggingface.co/meta-llama/Llama-2-7b-chat
+  - llama-2-7b: https://huggingface.co/meta-llama/Llama-2-7b
+  - llama-2-7b-chat: https://huggingface.co/meta-llama/Llama-2-7b-chat
 
 > [!NOTE]
 > Please download the pth version (the one without -hf prefix)
 
 - Change the path in [`Program.cs`](./Program.cs#L12) to the folder where you download the model weight.
 - Determine the right torchsharp runtime nuget package on your platform.
- - use `TorchSharp-cuda-linux` if you are on linux and have a nvidia gpu
- - use `TorchSharp-cuda-windows` if you are on windows and have a nvidia gpu
- - use `TorchSharp-cpu` if you don't have a nvidia gpu
+  - use `TorchSharp-cuda-linux` if you are on linux and have a nvidia gpu
+  - use `TorchSharp-cuda-windows` if you are on windows and have a nvidia gpu
+  - use `TorchSharp-cpu` if you don't have a nvidia gpu
 - Run the project using `dotnet run`
 
 ## About tokenizer
