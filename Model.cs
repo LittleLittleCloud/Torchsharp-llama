@@ -44,9 +44,6 @@ public class ModelArgs
     [JsonPropertyName("max_seq_len")]
     public int MaxSeqLen { get; set; } = 1024;
 
-    [JsonPropertyName("device")]
-    public string Device { get; set; } = "cpu";
-
     public ScalarType Dtype => ScalarType.BFloat16;
 }
 
@@ -123,6 +120,12 @@ public class SelfAttention : torch.nn.Module<Tensor, int, Tensor, Tensor?, Tenso
 
     public override Tensor forward(Tensor input, int startPos, Tensor freqsComplex, Tensor? mask = null)
     {
+        // move cache to the same device as input if necessary
+        if (this.cache_k.device != input.device)
+        {
+            this.cache_k = this.cache_k.to(input.device);
+            this.cache_v = this.cache_v.to(input.device);
+        }
         int batchSize = (int)input.shape[0];
         int seqLen = (int)input.shape[1];
         var dim = input.shape[2];
@@ -149,7 +152,6 @@ public class SelfAttention : torch.nn.Module<Tensor, int, Tensor, Tensor?, Tenso
 
         // (B, Seq_Len, H_KV, Head_Dim) -> (B, Seq_Len, H_KV, Head_Dim)
         xk = Utils.ApplyRotaryEmbeddings(xk, freqsComplex);
-
         // replace entries in cache
         this.cache_k[..batchSize, startPos..(startPos + seqLen)] = xk;
         this.cache_v[..batchSize, startPos..(startPos + seqLen)] = xv;
@@ -295,10 +297,8 @@ public class Transformer : nn.Module<Tensor, int, Tensor>
 
         this.norm = new RMSNorm(args);
         this.output = nn.Linear(args.Dim, this.vocabSize, dtype: args.Dtype, hasBias: false);
-
         RegisterComponents();
-
-        this.freqs_compex = Utils.PrecomputeThetaPosFrequencies(args.Dim / args.NHeads, args.MaxSeqLen * 2, args.Device);
+        this.freqs_compex = Utils.PrecomputeThetaPosFrequencies(args.Dim / args.NHeads, args.MaxSeqLen * 2);
     }
 
     public ModelArgs Args => this.args;
@@ -310,11 +310,11 @@ public class Transformer : nn.Module<Tensor, int, Tensor>
         var seqLen = (int)tokens.shape[1];
 
         // print tokens shape
-        Console.WriteLine($"tokens shape: {string.Join(",", tokens.shape)}");
         var h = this.tok_embeddings.forward(tokens);
-        var freqsComplex = this.freqs_compex[startPos..(startPos + seqLen)];
-
+        var freqsComplex = this.freqs_compex[startPos..(startPos + seqLen)].to(h.device);
         Tensor? mask = null;
+        Console.WriteLine($"tokens shape: {string.Join(",", tokens.shape)}");
+
         if (seqLen > 1)
         {
             var device = h.device;
