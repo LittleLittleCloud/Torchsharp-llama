@@ -90,6 +90,14 @@ public class BPETokenizer : ITokenizer
         var decoder = new TokenizeDecoder(this.tokenizer.Model.IdToToken(this.BosId)!, this.tokenizer.Model.IdToToken(this.EosId)!);
         this.tokenizer.Decoder = decoder;
     }
+
+    public static BPETokenizer FromPretrained(
+        string folder,
+        string tokenizerJsonPath = "tokenizer.json"
+    )
+    {
+        throw new NotImplementedException();
+    }
     public int VocabSize => this.tokenizer.Model.GetVocabSize();
 
     public int PadId { get; }

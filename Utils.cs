@@ -12,6 +12,29 @@ namespace LLAMA;
 
 public static class Utils
 {
+    public static void Peek(this Tensor tensor, string id, int n = 10)
+    {
+        var device = tensor.device;
+        tensor = tensor.cpu();
+        var shapeString = string.Join(',', tensor.shape);
+        var dataString = string.Join(',', tensor.reshape(-1)[..n].to_type(ScalarType.Float32).data<float>().ToArray());
+        var tensor_1d = tensor.reshape(-1);
+        var tensor_index = torch.arange(tensor_1d.shape[0], dtype: ScalarType.Float32).to(tensor_1d.device).sqrt();
+        var avg = (tensor_1d * tensor_index).sum();
+        avg = avg / tensor_1d.sum();
+        Console.WriteLine($"{id}: sum: {avg.ToSingle()}  dtype: {tensor.dtype} shape: [{shapeString}] device: {device} has grad? {tensor.requires_grad}");
+    }
+
+    public static void Peek(this nn.Module model)
+    {
+        var state_dict = model.state_dict();
+        // preview state_dict
+        foreach (var (key, value) in state_dict.OrderBy(x => x.Key))
+        {
+            value.Peek(key);
+        }
+    }
+
     public static Tensor ApplyRotaryEmbeddings(Tensor input, Tensor freqsComplex)
     {
         // Separate the last dimension pairs of two values, representing the real and imaginary parts of the complex number
@@ -32,7 +55,6 @@ public static class Utils
         // Convert the complex number back to the real number
         // (B, Seq_Len, H, Head_Dim/2) -> (B, Seq_Len, H, Head_Dim/2, 2)
         var rotated = rotated_complex.view_as_real();
-        Console.WriteLine(rotated.mean().ToSingle());
 
         // (B, Seq_Len, H, Head_Dim/2, 2) -> (B, Seq_Len, H, Head_Dim)
         var rotated_reshaped = rotated.reshape(rotated.shape[0], rotated.shape[1], rotated.shape[2], -1);
@@ -62,7 +84,7 @@ public static class Utils
 //    freqs_complex = torch.polar(torch.ones_like(freqs), freqs)
 //    return freqs_complex
 
-    public static Tensor PrecomputeThetaPosFrequencies(int headDim, int seqLen, string device, float theta = 10000.0f)
+    public static Tensor PrecomputeThetaPosFrequencies(int headDim, int seqLen, float theta = 10000.0f)
     {
         // As written in the paragraph 3.2.2 of the paper
         // >> In order to generalize our results in 2D to any xi ∈ Rd where **d is even**, [...]
@@ -74,15 +96,15 @@ public static class Utils
         // Build the theta parameter
         // According to the formula theta_i = 10000^(-2(i-1)/dim) for i = [1, 2, ... dim/2]
         // Shape: (Head_Dim / 2)
-        var thetaNumerator = torch.arange(0, headDim, 2).to(torch.float32).to(device);
+        var thetaNumerator = torch.arange(0, headDim, 2).to(torch.float32);
         // Shape: (Head_Dim / 2)
-        var thetaInput = torch.pow(theta, -1.0f * (thetaNumerator / headDim)).to(device); // (Dim / 2)
+        var thetaInput = torch.pow(theta, -1.0f * (thetaNumerator / headDim)); // (Dim / 2)
         // Construct the positions (the "m" parameter)
         // Shape: (Seq_Len)
-        var m = torch.arange(seqLen, device: device);
+        var m = torch.arange(seqLen);
         // Multiply each theta by each position using the outer product.
         // Shape: (Seq_Len) outer_product* (Head_Dim / 2) -> (Seq_Len, Head_Dim / 2)
-        var freqs = torch.outer(m, thetaInput).to(torch.float32).to(device);
+        var freqs = torch.outer(m, thetaInput).to(torch.float32);
 
         // We can compute complex numbers in the polar form c = R * exp(m * theta), where R = 1 as follows:
         // (Seq_Len, Head_Dim / 2) -> (Seq_Len, Head_Dim / 2)

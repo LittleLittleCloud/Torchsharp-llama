@@ -3,19 +3,25 @@
 Inspired by [pytorch-llama](https://github.com/hkproj/pytorch-llama), this project implements LLaMA 2 from scratch with [TorchSharp](https://github.com/dotnet/TorchSharp)
 
 ## Prerequisites
-
+- git lfs
 - .NET 6.0 SDK
 - Access to one of LLaMA 2 models
 
 ## How to run
 
-- Follow this [instruction](https://github.com/dotnet/TorchSharp/wiki/Sharing-Model-Data-between-PyTorch-and-TorchSharp) to convert llama2 model to torchsharp format.
+- Download the model weight. The model weigh is available from huggingface model hub.
+ - llama-2-7b: https://huggingface.co/meta-llama/Llama-2-7b
+ - llama-2-7b-chat: https://huggingface.co/meta-llama/Llama-2-7b-chat
 
 > [!NOTE]
-> torchsharp format seems not to support `torch.half` type yet, so the model weight is saved as `torch.float` type instead, which makes the model size twice as large as the original one. This issue is addressed in [this issue](https://github.com/dotnet/TorchSharp/issues/1204), and when loading model from torchsharp model file, the model weight will need to be converted to `torch.half` type manually.
+> Please download the pth version (the one without -hf prefix)
 
-- Change the path in `Program.cs` to your model file path.
-- Run the project
+- Change the path in [`Program.cs`](./Program.cs#L12) to the folder where you download the model weight.
+- Determine the right torchsharp runtime nuget package on your platform.
+ - use `TorchSharp-cuda-linux` if you are on linux and have a nvidia gpu
+ - use `TorchSharp-cuda-windows` if you are on windows and have a nvidia gpu
+ - use `TorchSharp-cpu` if you don't have a nvidia gpu
+- Run the project using `dotnet run`
 
 ## About tokenizer
 This project uses a BPE tokenizer from [`Microsoft.ML.Tokenizer`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.ml.tokenizers.tokenizer?view=ml-dotnet-preview) to tokenize the input text. You can find the `vocab.json` and `merges.txt` under [torcharp-llama](Torchsharp-llama). To use a third-party tokenizer, you can simply replace the `vocab.json` and `merges.txt` with your own tokenizer files.

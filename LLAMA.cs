@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using TorchSharp;
+using TorchSharp.PyBridge;
 
 namespace LLAMA;
 
@@ -34,16 +35,17 @@ public class LLaMA
     }
 
     public static LLaMA Build(
-        string checkPointsDirectory,
+        string modelFolder,
         ITokenizer tokenizer,
         int maxSeqLen,
         int maxBatchSize,
+        string paramJsonPath = "params.json",
+        string modelWeightPath = "consolidated.00.pth",
         string device = "cpu")
     {
         var stopWatch = new Stopwatch();
         stopWatch.Start();
-        var checkPoints = Directory.GetFiles(checkPointsDirectory, "*.pt");
-        var paramJsonPath = Path.Combine(checkPointsDirectory, "params.json");
+        paramJsonPath = Path.Combine(modelFolder, paramJsonPath);
         var modelArgs = JsonSerializer.Deserialize<ModelArgs>(File.ReadAllText(paramJsonPath)) ?? throw new Exception("Failed to deserialize model args");
         modelArgs.VocabSize = tokenizer.VocabSize;
         modelArgs.MaxSeqLen = maxSeqLen;
@@ -52,12 +54,15 @@ public class LLaMA
         // print model args
         var modelArgsJson = JsonSerializer.Serialize(modelArgs, new JsonSerializerOptions { WriteIndented = true });
         Console.WriteLine($"modelArgs: {modelArgsJson}");
-        checkPoints.Count().Should().Be(1, "There should be only one checkpoint file in the directory");
-        var ckptPath = checkPoints.Last();
+        var checkpointPath = Path.Combine(modelFolder, modelWeightPath);
         var model = new Transformer(modelArgs);
-        var stateDict = model.state_dict();
-        stateDict.LoadStateDict(ckptPath);
-        model.load_state_dict(stateDict);
+        var loadedParameters = new Dictionary<string, bool>();
+        model.load_py(location: checkpointPath, strict: false, loadedParameters: loadedParameters);
+        // print loaded parameters
+        foreach (var (key, value) in loadedParameters.OrderBy(x => x.Key))
+        {
+            Console.WriteLine($"loadedParameters: {key} {value}");
+        }
         model = model.to(device);
         stopWatch.Stop();
         Console.WriteLine($"Loading checkpoint took {stopWatch.ElapsedMilliseconds} ms");
@@ -130,9 +135,6 @@ public class LLaMA
 
                 // print nextToken
                 Console.WriteLine($"nextToken: {string.Join(",", nextToken.data<long>())}");
-
-                // print curPos
-                Console.WriteLine($"curPos: {curPos}");
                 tokens[.., curPos] = nextToken;
                 if (logProbs)
                 {
