@@ -6,30 +6,19 @@ using TorchSharp;
 var vocabPath = @"vocab.json";
 var mergesPath = @"merges.txt";
 var tokenizer = new BPETokenizer(vocabPath, mergesPath);
-var checkpointDirectory = "/home/xiaoyuz/llama/llama-2-7b";
-var device = "cuda";
-
-if (device == "cuda")
-{
-    torch.InitializeDeviceType(DeviceType.CUDA);
-    torch.cuda.is_available().Should().BeTrue();
-}
-
-torch.manual_seed(100);
-var model = LLaMA.Build(
-       checkPointsDirectory: checkpointDirectory,
-       tokenizer: tokenizer,
-       maxSeqLen: 128,
-       maxBatchSize: 1,
-       device: device);
 
 var prompts = new[]
 {
     "I believe the meaning of life is",
+    "Replace this text in the input field to see how llama tokenization works."
 };
-var result = model.TextCompletion(prompts, temperature: 0, echo: true, device: device);
 
-foreach (var item in result)
+foreach (var prompt in prompts)
 {
-    Console.WriteLine($"generation: {item.generation}");
+    var tokens = tokenizer.Encode(prompt, bos: true, eos: false);
+    var decoded = tokenizer.Decode(tokens);
+    Console.WriteLine($"Prompt: {prompt}");
+    Console.WriteLine($"Tokens: {string.Join(", ", tokens)}");
+    Console.WriteLine($"Decoded: {decoded}");
+    Console.WriteLine();
 }

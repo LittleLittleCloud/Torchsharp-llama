@@ -12,7 +12,7 @@
   <ItemGroup>
     <PackageReference Include="FluentAssertions" Version="7.0.0-alpha.3" />
     <PackageReference Include="Microsoft.ML.Tokenizers" Version="0.21.1" />
-    <PackageReference Include="TorchSharp-cuda-linux" Version="0.100.7" />
+    <PackageReference Include="TorchSharp-cuda-windows" Version="0.100.7" />
     <!-- <PackageReference Include="TorchSharp-cpu" Version="0.100.7" /> -->
     <!-- <PackageReference Include="libtorch-cuda-12.1-linux-x64" Version="2.1.0.1" /> -->
   </ItemGroup>
