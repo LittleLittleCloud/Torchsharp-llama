@@ -39,8 +39,10 @@ public class TikTokenNormalizer : Normalizer
 {
     public override NormalizedString Normalize(string original)
     {
-        // replace space with Ġ
-        var normalized = original.Replace(" ", "Ġ");
+        // replace newline with Ċ
+        var normalized = original.Replace(Environment.NewLine, "Ċ");
+        // replace whitespace with Ġ
+        normalized = normalized.Replace(' ', 'Ġ');
 
         return new NormalizedString(original, normalized, null, isOneToOneMapping: true);
     }
@@ -85,20 +87,23 @@ public class SplitPreTokenizer : Microsoft.ML.Tokenizers.PreTokenizer
 public class TokenizeDecoder : Microsoft.ML.Tokenizers.TokenizerDecoder
 {
     private char spaceReplacement = '▁';
+    private char newlineReplacement = 'Ċ';
     private string bos = "<s>";
     private string eos = "</s>";
 
-    public TokenizeDecoder(string bos = "<s>", string eos = "</s>", char spaceReplacement = '▁')
+    public TokenizeDecoder(string bos = "<s>", string eos = "</s>", char spaceReplacement = '▁', char newlineReplacement = 'Ċ')
     {
         this.bos = bos;
         this.eos = eos;
         this.spaceReplacement = spaceReplacement;
+        this.newlineReplacement = newlineReplacement;
     }
 
     public override string Decode(IEnumerable<string> tokens)
     {
         var str = string.Join("", tokens);
         str = str.Replace(spaceReplacement, ' ');
+        str = str.Replace(newlineReplacement.ToString(), Environment.NewLine);
 
         if (str.StartsWith(bos))
         {
