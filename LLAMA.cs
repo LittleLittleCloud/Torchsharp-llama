@@ -47,7 +47,7 @@ public class LLaMA
         stopWatch.Start();
         paramJsonPath = Path.Combine(modelFolder, paramJsonPath);
         var modelArgs = JsonSerializer.Deserialize<ModelArgs>(File.ReadAllText(paramJsonPath)) ?? throw new Exception("Failed to deserialize model args");
-        modelArgs.VocabSize = 128256;
+        modelArgs.VocabSize = tokenizer.VocabSize;
         modelArgs.MaxSeqLen = maxSeqLen;
         modelArgs.MaxBatchSize = maxBatchSize;
         // print model args
@@ -131,9 +131,6 @@ public class LLaMA
                 nextToken = nextToken.reshape(-1);
                 // # only replace token if prompt has already been generated
                 nextToken = torch.where(inputTextMask[.., curPos], tokens[.., curPos], nextToken);
-
-                // print nextToken
-                Console.WriteLine($"nextToken: {string.Join(",", nextToken.data<long>())}");
                 tokens[.., curPos] = nextToken;
                 if (logProbs)
                 {

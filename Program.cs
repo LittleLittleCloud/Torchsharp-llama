@@ -3,20 +3,16 @@
 using FluentAssertions;
 using LLAMA;
 using TorchSharp;
-using System.Runtime.InteropServices;
-var vocabPath = @"vocab.json";
-var mergesPath = @"merges.txt";
-var tokenizer = new BPETokenizer(vocabPath, mergesPath);
+
+var tokenizerFolder = @"C:\Users\xiaoyuz\source\repos\Meta-Llama-3-8B\";
+var tokenizer = LLama3Tokenizer.FromPretrained(tokenizerFolder);
 
 // update the following path to where you download the model
-var checkpointDirectory = "/home/xiaoyuz/Llama-2-7b";
+var checkpointDirectory = @"C:\Users\xiaoyuz\source\repos\llama3\Meta-Llama-3-8B\";
 var device = "cuda";
 
 if (device == "cuda")
 {
-    // Comment out the following two line if you use a torchsharp runtime package.
-    var libTorch = "/anaconda/envs/py38_default/lib/python3.8/site-packages/torch/lib/libtorch.so";
-    NativeLibrary.Load(libTorch);
     torch.InitializeDeviceType(DeviceType.CUDA);
     torch.cuda.is_available().Should().BeTrue();
 }
@@ -32,10 +28,33 @@ var model = LLaMA.Build(
 var prompts = new[]
 {
     "I believe the meaning of life is",
-};
-var result = model.TextCompletion(prompts, temperature: 0, echo: true, device: device);
+    "Simply put, the theory of relativity states that",
+    """
+    A brief message congratulating the team on the launch:
 
-foreach (var item in result)
+    Hi everyone,
+
+    I just
+    """,
+    """
+    Translate English to French:
+
+    sea otter => loutre de mer
+    peppermint => menthe poivrée
+    plush girafe => girafe peluche
+    cheese =>
+    """
+};
+
+foreach (var prompt in prompts)
 {
-    Console.WriteLine($"generation: {item.generation}");
+    Console.WriteLine($"prompt: {prompt}");
+    var result = model.TextCompletion([prompt], temperature: 0, echo: true, device: device);
+
+    foreach (var item in result)
+    {
+        Console.WriteLine($"generation: {item.generation}");
+    }
 }
+
+

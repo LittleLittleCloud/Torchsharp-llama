@@ -313,7 +313,6 @@ public class Transformer : nn.Module<Tensor, int, Tensor>
         var h = this.tok_embeddings.forward(tokens);
         var freqsComplex = this.freqs_compex[startPos..(startPos + seqLen)].to(h.device);
         Tensor? mask = null;
-        Console.WriteLine($"tokens shape: {string.Join(",", tokens.shape)}");
 
         if (seqLen > 1)
         {
