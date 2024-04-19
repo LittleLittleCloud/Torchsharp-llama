@@ -47,10 +47,9 @@ public class LLaMA
         stopWatch.Start();
         paramJsonPath = Path.Combine(modelFolder, paramJsonPath);
         var modelArgs = JsonSerializer.Deserialize<ModelArgs>(File.ReadAllText(paramJsonPath)) ?? throw new Exception("Failed to deserialize model args");
-        modelArgs.VocabSize = tokenizer.VocabSize;
+        modelArgs.VocabSize = 128256;
         modelArgs.MaxSeqLen = maxSeqLen;
         modelArgs.MaxBatchSize = maxBatchSize;
-        torch.set_default_dtype(torch.bfloat16);
         // print model args
         var modelArgsJson = JsonSerializer.Serialize(modelArgs, new JsonSerializerOptions { WriteIndented = true });
         Console.WriteLine($"modelArgs: {modelArgsJson}");
