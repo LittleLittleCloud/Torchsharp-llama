@@ -1,3 +1,7 @@
+# Archived
+
+The implementation of this model has been ported to Microsoft.ML.GenAI.LLaMA
+
 ## Torchsharp LLaMA
 
 Inspired by [pytorch-llama](https://github.com/hkproj/pytorch-llama), this project implements LLaMA 2 from scratch with [TorchSharp](https://github.com/dotnet/TorchSharp)
