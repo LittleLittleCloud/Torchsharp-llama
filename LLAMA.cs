@@ -50,7 +50,6 @@ public class LLaMA
         modelArgs.VocabSize = tokenizer.VocabSize;
         modelArgs.MaxSeqLen = maxSeqLen;
         modelArgs.MaxBatchSize = maxBatchSize;
-        torch.set_default_dtype(torch.bfloat16);
         // print model args
         var modelArgsJson = JsonSerializer.Serialize(modelArgs, new JsonSerializerOptions { WriteIndented = true });
         Console.WriteLine($"modelArgs: {modelArgsJson}");
@@ -132,9 +131,6 @@ public class LLaMA
                 nextToken = nextToken.reshape(-1);
                 // # only replace token if prompt has already been generated
                 nextToken = torch.where(inputTextMask[.., curPos], tokens[.., curPos], nextToken);
-
-                // print nextToken
-                Console.WriteLine($"nextToken: {string.Join(",", nextToken.data<long>())}");
                 tokens[.., curPos] = nextToken;
                 if (logProbs)
                 {

@@ -207,7 +207,7 @@ public class FeedForward : torch.nn.Module<Tensor, Tensor>
     {
         var hiddenDim = args.Dim * 4;
         hiddenDim = 2 * hiddenDim / 3;
-        hiddenDim = args.FFNDimMultiplier.HasValue ? (int)args.FFNDimMultiplier.Value * hiddenDim : hiddenDim;
+        hiddenDim = args.FFNDimMultiplier.HasValue ? (int)(args.FFNDimMultiplier.Value * hiddenDim) : hiddenDim;
 
         // Round the hidden_dim to the nearest multiple of the multiple_of parameter
         hiddenDim = args.MultipleOf * ((hiddenDim + args.MultipleOf - 1) / args.MultipleOf);
@@ -313,7 +313,6 @@ public class Transformer : nn.Module<Tensor, int, Tensor>
         var h = this.tok_embeddings.forward(tokens);
         var freqsComplex = this.freqs_compex[startPos..(startPos + seqLen)].to(h.device);
         Tensor? mask = null;
-        Console.WriteLine($"tokens shape: {string.Join(",", tokens.shape)}");
 
         if (seqLen > 1)
         {
